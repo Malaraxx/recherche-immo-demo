@@ -1,0 +1,716 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Boussole — Recherche immobilière conversationnelle</title>
+<meta name="description" content="Décrivez le bien que vous cherchez, les résultats arrivent immédiatement. Prototype de démonstration, annonces fictives (métropole lilloise).">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,500;0,9..144,600;1,9..144,500&family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  /* =========================================================
+     1. Système de design — papier chaud, encre aubergine,
+        accent terracotta. Mobile-first.
+     ========================================================= */
+  :root{
+    --paper:#FAF6EF;
+    --card:#FFFFFF;
+    --ink:#28203A;
+    --ink-soft:#6E6683;
+    --line:#E9E1D4;
+    --terra:#C4552D;
+    --terra-soft:#F7E6DC;
+    --terra-deep:#9E3F1D;
+    --plum:#4A3A6B;
+    --ok-bg:#EFEAF9;
+    --radius:16px;
+    --font-d:'Fraunces',Georgia,serif;
+    --font-t:'Outfit',system-ui,sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{scroll-behavior:smooth}
+  body{
+    font-family:var(--font-t);background:var(--paper);color:var(--ink);
+    line-height:1.55;-webkit-font-smoothing:antialiased;
+  }
+  [hidden]{display:none!important}
+  button{font:inherit;cursor:pointer}
+  ::placeholder{color:var(--ink-soft);opacity:.7}
+
+  /* =========================================================
+     2. Écran d'accueil — un champ, une accroche, 3 suggestions
+     ========================================================= */
+  #home{position:relative;min-height:100svh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px;text-align:center}
+  .brand{font-family:var(--font-d);font-weight:600;font-size:1.3rem;letter-spacing:.01em}
+  .brand i{font-style:normal;color:var(--terra)}
+  #home .brand{margin-bottom:34px}
+  #home h1{
+    font-family:var(--font-d);font-weight:500;font-size:clamp(1.7rem,5.5vw,2.7rem);
+    letter-spacing:-.01em;line-height:1.2;max-width:620px;margin-bottom:26px;
+  }
+  #home h1 em{font-style:italic;color:var(--terra)}
+  .ask{display:flex;gap:8px;width:100%;max-width:640px;background:var(--card);border:1.5px solid var(--line);border-radius:99px;padding:7px 7px 7px 22px;transition:border-color .2s,box-shadow .2s}
+  .ask:focus-within{border-color:var(--terra);box-shadow:0 4px 24px rgba(196,85,45,.12)}
+  .ask input{flex:1;min-width:0;border:none;background:none;font:inherit;font-size:.98rem;color:var(--ink);outline:none}
+  .ask button{
+    border:none;border-radius:99px;background:var(--ink);color:var(--paper);
+    padding:11px 20px;font-weight:600;font-size:.9rem;white-space:nowrap;transition:background .2s;
+  }
+  .ask button:hover{background:var(--terra-deep)}
+  .hints{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin-top:20px;max-width:640px}
+  .hints button{
+    border:1px solid var(--line);background:var(--card);color:var(--ink-soft);
+    border-radius:99px;padding:8px 14px;font-size:.82rem;transition:border-color .2s,color .2s;
+  }
+  .hints button:hover{border-color:var(--terra);color:var(--terra-deep)}
+
+  /* =========================================================
+     3. Vue scindée — résultats (plein écran mobile) +
+        conversation (tiroir bas mobile / colonne gauche desktop)
+     ========================================================= */
+  #app{min-height:100svh}
+  .topbar{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid var(--line)}
+  .topbar .tag{font-size:.68rem;font-weight:600;letter-spacing:.09em;text-transform:uppercase;color:var(--ink-soft)}
+
+  #results{padding:16px 18px 170px} /* marge basse = place du tiroir mobile */
+  .chips{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px}
+  .chip{
+    display:inline-flex;align-items:center;gap:7px;background:var(--terra-soft);color:var(--terra-deep);
+    border:1px solid rgba(196,85,45,.25);border-radius:99px;padding:5px 7px 5px 13px;
+    font-size:.8rem;font-weight:600;animation:pop .18s ease;
+  }
+  @keyframes pop{from{transform:scale(.92);opacity:0}to{transform:scale(1);opacity:1}}
+  .chip button{
+    border:none;background:rgba(196,85,45,.14);color:inherit;border-radius:99px;
+    width:19px;height:19px;line-height:1;font-size:.78rem;display:flex;align-items:center;justify-content:center;
+  }
+  .chip button:hover{background:var(--terra);color:#fff}
+  .count{font-size:.85rem;color:var(--ink-soft);margin-bottom:14px}
+  .count b{color:var(--ink);font-weight:700}
+
+  .cards{display:grid;grid-template-columns:1fr;gap:14px}
+  @media(min-width:640px){.cards{grid-template-columns:1fr 1fr}}
+  @media(min-width:1280px){.cards{grid-template-columns:1fr 1fr 1fr}}
+
+  .bcard{
+    background:var(--card);border:1px solid var(--line);border-radius:var(--radius);
+    overflow:hidden;animation:rise .3s ease both;
+  }
+  @keyframes rise{from{transform:translateY(8px);opacity:0}to{transform:none;opacity:1}}
+  .visual{
+    height:110px;display:flex;align-items:flex-end;padding:12px 16px;
+    color:rgba(255,255,255,.94);font-family:var(--font-d);font-style:italic;font-size:1rem;
+  }
+  .visual small{font-style:normal;font-family:var(--font-t);font-size:.72rem;opacity:.85;display:block}
+  .bbody{padding:14px 16px 16px}
+  .bhead{display:flex;justify-content:space-between;align-items:baseline;gap:10px;margin-bottom:2px}
+  .btitle{font-weight:600;font-size:.92rem}
+  .bprice{font-family:var(--font-d);font-weight:600;font-size:1.08rem;white-space:nowrap;font-variant-numeric:tabular-nums}
+  .bmeta{font-size:.78rem;color:var(--ink-soft);margin-bottom:8px}
+  .dpe{
+    display:inline-block;font-size:.68rem;font-weight:700;padding:1px 6px;border-radius:5px;
+    background:var(--ink);color:var(--paper);vertical-align:1px;
+  }
+  .dpe.good{background:var(--plum)}
+  .dpe.bad{background:var(--terra-deep)}
+  .badges{display:flex;gap:6px;margin-bottom:8px;flex-wrap:wrap}
+  .badge{font-size:.68rem;font-weight:700;letter-spacing:.05em;text-transform:uppercase;padding:2px 8px;border-radius:5px;background:var(--ok-bg);color:var(--plum)}
+  .badge.warn{background:var(--terra-soft);color:var(--terra-deep)}
+  .why{list-style:none;border-top:1px dashed var(--line);padding-top:9px}
+  .why li{font-size:.78rem;color:var(--ink-soft);padding-left:15px;position:relative;margin-bottom:3px}
+  .why li::before{content:'✓';position:absolute;left:0;color:var(--terra);font-weight:700}
+  .why li:first-child{color:var(--ink);font-weight:500}
+
+  /* Squelettes de chargement */
+  .sk{height:250px;border-radius:var(--radius);border:1px solid var(--line);overflow:hidden;position:relative;background:var(--card)}
+  .sk::after{
+    content:'';position:absolute;inset:0;
+    background:linear-gradient(100deg,transparent 30%,rgba(233,225,212,.6) 50%,transparent 70%);
+    animation:shimmer 1.1s infinite;
+  }
+  @keyframes shimmer{from{transform:translateX(-100%)}to{transform:translateX(100%)}}
+
+  /* Suggestions d'assouplissement */
+  .widen{margin-top:16px;padding:16px;border:1.5px dashed var(--terra);border-radius:var(--radius);background:var(--terra-soft)}
+  .widen p{font-size:.85rem;font-weight:600;color:var(--terra-deep);margin-bottom:10px}
+  .widen button{
+    display:inline-block;margin:0 8px 8px 0;border:1px solid var(--terra);background:var(--card);
+    color:var(--terra-deep);border-radius:99px;padding:7px 14px;font-size:.82rem;font-weight:600;transition:background .2s,color .2s;
+  }
+  .widen button:hover{background:var(--terra);color:#fff}
+  .empty{padding:26px 4px;color:var(--ink-soft);font-size:.9rem}
+
+  /* Conversation — tiroir bas (mobile-first) */
+  #convo{
+    position:fixed;bottom:0;left:0;right:0;z-index:10;background:var(--card);
+    border-top:1.5px solid var(--line);border-radius:18px 18px 0 0;box-shadow:0 -8px 30px rgba(40,32,58,.08);
+  }
+  .drawer-head{display:flex;align-items:center;justify-content:space-between;width:100%;background:none;border:none;padding:10px 18px 4px;color:var(--ink-soft);font-size:.78rem;font-weight:600}
+  .drawer-head .chev{transition:transform .25s}
+  #convo.open .chev{transform:rotate(180deg)}
+  .msgs{
+    display:none;max-height:34svh;overflow-y:auto;padding:6px 16px 4px;
+    scroll-behavior:smooth;
+  }
+  #convo.open .msgs{display:block}
+  .msg{max-width:88%;padding:8px 13px;border-radius:14px;font-size:.86rem;margin-bottom:8px;animation:pop .18s ease}
+  .msg.user{background:var(--ink);color:var(--paper);margin-left:auto;border-bottom-right-radius:4px}
+  .msg.bot{background:var(--paper);border:1px solid var(--line);border-bottom-left-radius:4px}
+  .convo-input{padding:10px 14px 14px}
+  .convo-input .ask{max-width:none}
+  .convo-input .ask input{font-size:.9rem}
+  .convo-input .ask button{padding:9px 16px}
+
+  /* Desktop : colonne gauche fixe, résultats à droite */
+  @media(min-width:920px){
+    #app{display:grid;grid-template-columns:360px 1fr;grid-template-rows:auto 1fr;height:100vh}
+    #convo{
+      position:static;display:flex;flex-direction:column;z-index:auto;
+      border-radius:0;border-top:none;border-right:1.5px solid var(--line);box-shadow:none;
+      grid-row:1/3;height:100vh;
+    }
+    .drawer-head{display:none}
+    .msgs,#convo.open .msgs{display:block;flex:1;max-height:none;padding:16px}
+    .convo-input{border-top:1px solid var(--line)}
+    #main{overflow-y:auto;min-height:0}
+    #results{padding:18px 26px 60px}
+    .convo-brand{padding:16px 18px 6px}
+  }
+  .convo-brand{display:none}
+  @media(min-width:920px){.convo-brand{display:block}}
+
+  .foot{font-size:.72rem;color:var(--ink-soft);text-align:center;padding:20px;line-height:1.5}
+  #home .foot{position:absolute;bottom:8px;left:0;right:0}
+  @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+
+<!-- ============ Écran d'accueil ============ -->
+<div id="home">
+  <div class="brand">boussole<i>.</i></div>
+  <h1>Décrivez le bien que vous cherchez, <em>les résultats arrivent</em>.</h1>
+  <form class="ask" id="homeForm">
+    <input type="text" id="homeInput" placeholder="Ex : maison 3 chambres avec jardin, max 300 000 €, autour de Lille" autocomplete="off" aria-label="Décrivez votre recherche">
+    <button type="submit">Chercher</button>
+  </form>
+  <div class="hints" aria-label="Exemples de recherche">
+    <button type="button">Maison 3 chambres avec jardin autour de 300k près de Lille</button>
+    <button type="button">Appartement T2 dans le Vieux-Lille, budget 260 000 €</button>
+    <button type="button">Maison de plain-pied avec jardin, max 250k</button>
+  </div>
+  <p class="foot">Prototype de démonstration — annonces fictives. Conçu par Florian Malara.</p>
+</div>
+
+<!-- ============ Vue scindée ============ -->
+<div id="app" hidden>
+  <aside id="convo" aria-label="Conversation">
+    <div class="convo-brand brand">boussole<i>.</i></div>
+    <button class="drawer-head" id="drawerToggle" type="button" aria-expanded="false">
+      <span id="drawerLabel">Conversation</span><span class="chev">▲</span>
+    </button>
+    <div class="msgs" id="msgs" aria-live="polite"></div>
+    <div class="convo-input">
+      <form class="ask" id="convoForm">
+        <input type="text" id="convoInput" placeholder="Affinez : « avec jardin obligatoire », « monte à 350k »…" autocomplete="off" aria-label="Affiner la recherche">
+        <button type="submit">Affiner</button>
+      </form>
+    </div>
+  </aside>
+  <div class="topbar">
+    <span class="brand">boussole<i>.</i></span>
+    <span class="tag">Démo · Métropole lilloise</span>
+  </div>
+  <main id="main">
+    <div id="results">
+      <div class="chips" id="chips"></div>
+      <div class="count" id="count"></div>
+      <div class="cards" id="cards"></div>
+      <div id="widen"></div>
+      <p class="foot">Prototype de démonstration — annonces fictives. Conçu par Florian Malara.</p>
+    </div>
+  </main>
+</div>
+
+<script>
+(function(){
+'use strict';
+
+/* =========================================================
+   1. Données — 40 annonces fictives, métropole lilloise.
+   jardin : surface en m² (0 = pas de jardin).
+   etages : 0 = plain-pied. Tags optionnels : viager, travaux, neuf.
+   atout : raison de correspondance SPÉCIFIQUE au bien.
+   ========================================================= */
+const DB = [
+  // Lille — Vauban
+  {id:1,  type:'appartement', prix:185000, surf:45,  pieces:2, ch:1, jardin:0,   etages:3, dpe:'D', lieu:'Vauban',            ville:'Lille', dist:1.6, desc:"T2 lumineux au 3e étage d'une résidence calme",       atout:"Balcon filant exposé ouest"},
+  {id:2,  type:'appartement', prix:262000, surf:68,  pieces:3, ch:2, jardin:0,   etages:2, dpe:'C', lieu:'Vauban',            ville:'Lille', dist:1.6, desc:"T3 refait à neuf à deux pas des facultés",            atout:"Cave saine + local vélo sécurisé"},
+  {id:3,  type:'maison',      prix:495000, surf:130, pieces:6, ch:4, jardin:90,  etages:2, dpe:'D', lieu:'Vauban',            ville:'Lille', dist:1.6, desc:"Maison de ville années 30 avec garage",               atout:"Jardin de 90 m² sans vis-à-vis"},
+  // Lille — Wazemmes
+  {id:4,  type:'appartement', prix:95000,  surf:28,  pieces:1, ch:0, jardin:0,   etages:1, dpe:'E', lieu:'Wazemmes',          ville:'Lille', dist:1.8, desc:"Studio idéal premier achat ou investissement",        atout:"Rentabilité locative estimée à 6,1 %"},
+  {id:5,  type:'appartement', prix:122000, surf:41,  pieces:2, ch:1, jardin:0,   etages:2, dpe:'F', lieu:'Wazemmes',          ville:'Lille', dist:1.8, desc:"T2 à rafraîchir proche du métro Gambetta",            atout:"2 980 €/m², le plus bas du quartier", travaux:true},
+  {id:6,  type:'appartement', prix:178000, surf:60,  pieces:3, ch:2, jardin:0,   etages:1, dpe:'D', lieu:'Wazemmes',          ville:'Lille', dist:1.8, desc:"T3 traversant au 1er étage, marché à 200 m",          atout:"Double exposition est-ouest"},
+  {id:7,  type:'maison',      prix:249000, surf:85,  pieces:4, ch:3, jardin:40,  etages:2, dpe:'E', lieu:'Wazemmes',          ville:'Lille', dist:1.8, desc:"Maison de courée entièrement rénovée",                atout:"Cour-jardin de 40 m² au calme absolu"},
+  // Vieux-Lille
+  {id:8,  type:'appartement', prix:259000, surf:48,  pieces:2, ch:1, jardin:0,   etages:2, dpe:'E', lieu:'Vieux-Lille',       ville:'Lille', dist:0.8, desc:"T2 de caractère rue de la Monnaie",                   atout:"Poutres et briques d'origine"},
+  {id:9,  type:'appartement', prix:398000, surf:75,  pieces:3, ch:2, jardin:0,   etages:1, dpe:'D', lieu:'Vieux-Lille',       ville:'Lille', dist:0.8, desc:"T3 haussmannien proche de la Grand'Place",            atout:"Parquet point de Hongrie, 2 cheminées"},
+  {id:10, type:'appartement', prix:545000, surf:105, pieces:4, ch:3, jardin:0,   etages:4, dpe:'C', lieu:'Vieux-Lille',       ville:'Lille', dist:0.8, desc:"T4 familial rénové par architecte",                   atout:"Dernier étage, vue sur la cathédrale"},
+  {id:11, type:'maison',      prix:650000, surf:140, pieces:6, ch:4, jardin:25,  etages:3, dpe:'D', lieu:'Vieux-Lille',       ville:'Lille', dist:0.8, desc:"Maison de ville XVIIIe entièrement restaurée",        atout:"Patio de 25 m², introuvable dans le secteur"},
+  // Lille — Fives
+  {id:12, type:'maison',      prix:199000, surf:90,  pieces:4, ch:3, jardin:60,  etages:2, dpe:'E', lieu:'Fives',             ville:'Lille', dist:2.6, desc:"Maison 1930 en briques, proche métro Fives",          atout:"Garage + atelier de 18 m²"},
+  {id:13, type:'appartement', prix:238000, surf:64,  pieces:3, ch:2, jardin:0,   etages:2, dpe:'A', lieu:'Fives',             ville:'Lille', dist:2.6, desc:"T3 neuf dans le programme Fives Cail",                atout:"Neuf RE2020 — frais de notaire réduits", neuf:true},
+  {id:14, type:'maison',      prix:165000, surf:78,  pieces:4, ch:2, jardin:30,  etages:2, dpe:'F', lieu:'Fives',             ville:'Lille', dist:2.6, desc:"Maison à rénover, fort potentiel",                    atout:"Potentiel de +25 % de valeur après travaux", travaux:true},
+  {id:15, type:'appartement', prix:112000, surf:45,  pieces:2, ch:1, jardin:0,   etages:1, dpe:'D', lieu:'Fives',             ville:'Lille', dist:2.6, desc:"T2 en viager occupé (rente 450 €/mois)",              atout:"Décote de 35 % sur le prix du marché", viager:true},
+  // Lille — Saint-Maurice Pellevoisin
+  {id:16, type:'maison',      prix:340000, surf:115, pieces:5, ch:4, jardin:80,  etages:2, dpe:'D', lieu:'Saint-Maurice',     ville:'Lille', dist:2.2, desc:"Maison de famille dans une rue pavillonnaire calme", atout:"Sous-sol total + combles aménageables"},
+  {id:17, type:'appartement', prix:225000, surf:70,  pieces:3, ch:2, jardin:0,   etages:3, dpe:'C', lieu:'Saint-Maurice',     ville:'Lille', dist:2.2, desc:"T3 en étage élevé avec ascenseur",                    atout:"Balcon de 8 m² face au square"},
+  // La Madeleine
+  {id:18, type:'maison',      prix:385000, surf:120, pieces:6, ch:4, jardin:100, etages:2, dpe:'D', lieu:'La Madeleine',      ville:'La Madeleine', dist:3.2, desc:"Maison bourgeoise proche du Romarin",            atout:"Jardin de 100 m² orienté sud-ouest"},
+  {id:19, type:'appartement', prix:228000, surf:66,  pieces:3, ch:2, jardin:0,   etages:1, dpe:'C', lieu:'La Madeleine',      ville:'La Madeleine', dist:3.2, desc:"T3 rénové au calme, proche commerces",           atout:"Gare à 400 m — Lille en 4 minutes"},
+  {id:20, type:'appartement', prix:298000, surf:88,  pieces:4, ch:3, jardin:0,   etages:2, dpe:'B', lieu:'La Madeleine',      ville:'La Madeleine', dist:3.2, desc:"T4 familial dans une résidence de 2015",         atout:"DPE B — charges de copropriété maîtrisées"},
+  {id:21, type:'maison',      prix:315000, surf:95,  pieces:5, ch:3, jardin:60,  etages:2, dpe:'E', lieu:'La Madeleine',      ville:'La Madeleine', dist:3.2, desc:"Maison de ville avec garage double",             atout:"Garage double, rare en centre-ville"},
+  {id:22, type:'appartement', prix:145000, surf:70,  pieces:3, ch:2, jardin:0,   etages:1, dpe:'D', lieu:'La Madeleine',      ville:'La Madeleine', dist:3.2, desc:"T3 en viager occupé (dame de 81 ans)",           atout:"Décote de 40 % sur le prix du marché", viager:true},
+  // Lambersart
+  {id:23, type:'maison',      prix:349000, surf:110, pieces:5, ch:3, jardin:120, etages:2, dpe:'D', lieu:'Lambersart',        ville:'Lambersart', dist:3.6, desc:"Maison en briques quartier Canteleu",              atout:"Jardin de 120 m² avec terrasse plein sud"},
+  {id:24, type:'maison',      prix:449000, surf:140, pieces:6, ch:4, jardin:200, etages:2, dpe:'C', lieu:'Lambersart',        ville:'Lambersart', dist:3.6, desc:"Grande maison familiale avenue de l'Hippodrome",   atout:"Jardin de 200 m², rare dans ce budget"},
+  {id:25, type:'appartement', prix:209000, surf:65,  pieces:3, ch:2, jardin:0,   etages:1, dpe:'C', lieu:'Lambersart',        ville:'Lambersart', dist:3.6, desc:"T3 avec balcon dans une résidence arborée",        atout:"Parking privatif + cave"},
+  // Marcq-en-Barœul
+  {id:26, type:'maison',      prix:565000, surf:150, pieces:7, ch:4, jardin:250, etages:2, dpe:'C', lieu:'Marcq-en-Barœul',   ville:'Marcq-en-Barœul', dist:5.5, desc:"Maison d'architecte proche du Croisé-Laroche", atout:"Parc arboré de 250 m² avec dépendance"},
+  {id:27, type:'maison',      prix:398000, surf:105, pieces:5, ch:3, jardin:150, etages:2, dpe:'D', lieu:'Marcq-en-Barœul',   ville:'Marcq-en-Barœul', dist:5.5, desc:"Maison des années 60 rénovée, secteur pavillonnaire", atout:"Écoles et tram à moins de 5 min à pied"},
+  {id:28, type:'appartement', prix:269000, surf:72,  pieces:3, ch:2, jardin:0,   etages:1, dpe:'B', lieu:'Marcq-en-Barœul',   ville:'Marcq-en-Barœul', dist:5.5, desc:"T3 neuf avec terrasse, livraison immédiate",   atout:"Neuf — frais de notaire réduits (2,5 %)", neuf:true},
+  {id:29, type:'maison',      prix:285000, surf:130, pieces:6, ch:4, jardin:180, etages:2, dpe:'E', lieu:'Marcq-en-Barœul',   ville:'Marcq-en-Barœul', dist:5.5, desc:"Maison en viager occupé (couple 78 et 80 ans)", atout:"Prix 40 % sous le marché du secteur", viager:true},
+  // Villeneuve-d'Ascq
+  {id:30, type:'maison',      prix:275000, surf:92,  pieces:4, ch:3, jardin:90,  etages:0, dpe:'C', lieu:"Villeneuve-d'Ascq", ville:"Villeneuve-d'Ascq", dist:7.5, desc:"Plain-pied des années 80 remis au goût du jour", atout:"Plain-pied intégral — aucune marche"},
+  {id:31, type:'maison',      prix:315000, surf:110, pieces:5, ch:4, jardin:120, etages:1, dpe:'D', lieu:"Villeneuve-d'Ascq", ville:"Villeneuve-d'Ascq", dist:7.5, desc:"Maison familiale dans une impasse résidentielle", atout:"Face au parc du Héron, sans vis-à-vis"},
+  {id:32, type:'appartement', prix:189000, surf:68,  pieces:3, ch:2, jardin:0,   etages:2, dpe:'C', lieu:"Villeneuve-d'Ascq", ville:"Villeneuve-d'Ascq", dist:7.5, desc:"T3 en parfait état proche Hôtel de Ville",       atout:"Métro à 300 m — campus en 10 min"},
+  {id:33, type:'appartement', prix:232000, surf:85,  pieces:4, ch:3, jardin:0,   etages:3, dpe:'A', lieu:"Villeneuve-d'Ascq", ville:"Villeneuve-d'Ascq", dist:7.5, desc:"T4 neuf, résidence RE2020 avec ascenseur",       atout:"Terrasse de 12 m² au dernier étage", neuf:true},
+  // Seclin
+  {id:34, type:'maison',      prix:219000, surf:88,  pieces:4, ch:3, jardin:150, etages:0, dpe:'D', lieu:'Seclin',            ville:'Seclin', dist:12,  desc:"Plain-pied avec jardin dans un quartier calme",    atout:"Plain-pied + jardin de 150 m²"},
+  {id:35, type:'maison',      prix:268000, surf:120, pieces:5, ch:4, jardin:300, etages:1, dpe:'E', lieu:'Seclin',            ville:'Seclin', dist:12,  desc:"Grande maison individuelle sur 300 m² de terrain", atout:"Terrain de 300 m² avec double garage"},
+  {id:36, type:'appartement', prix:142000, surf:63,  pieces:3, ch:2, jardin:0,   etages:1, dpe:'D', lieu:'Seclin',            ville:'Seclin', dist:12,  desc:"T3 en résidence récente avec parking",             atout:"Gare de Seclin à 5 min à pied"},
+  // Armentières
+  {id:37, type:'maison',      prix:159000, surf:95,  pieces:4, ch:3, jardin:70,  etages:2, dpe:'F', lieu:'Armentières',       ville:'Armentières', dist:16, desc:"Maison 1930 à moderniser, structure saine",      atout:"Toiture neuve (2024), gros œuvre sain", travaux:true},
+  {id:38, type:'maison',      prix:235000, surf:135, pieces:6, ch:4, jardin:200, etages:2, dpe:'E', lieu:'Armentières',       ville:'Armentières', dist:16, desc:"Grande maison de maître en centre-ville",        atout:"Jardin de 200 m² + garage double"},
+  {id:39, type:'maison',      prix:118000, surf:80,  pieces:3, ch:2, jardin:100, etages:0, dpe:'E', lieu:'Armentières',       ville:'Armentières', dist:16, desc:"Plain-pied en viager occupé (monsieur de 78 ans)", atout:"Plain-pied avec jardin — décote viager", viager:true},
+  {id:40, type:'appartement', prix:99000,  surf:48,  pieces:2, ch:1, jardin:0,   etages:1, dpe:'D', lieu:'Armentières',       ville:'Armentières', dist:16, desc:"T2 en bon état proche de la gare",               atout:"2 060 €/m² — idéal premier achat"}
+];
+
+// Teintes de dégradé par secteur (bloc visuel sans photo)
+const HUES = {'Vieux-Lille':258,'Vauban':232,'Wazemmes':16,'Fives':340,'Saint-Maurice':288,
+  'La Madeleine':206,'Lambersart':30,'Marcq-en-Barœul':264,"Villeneuve-d'Ascq":192,'Seclin':46,'Armentières':354};
+
+// Lieux reconnus par le parseur (formes normalisées sans accents)
+const PLACES = [
+  {label:'Vieux-Lille',       re:/vieux[\s-]?lille/},
+  {label:'Vauban',            re:/vauban/},
+  {label:'Wazemmes',          re:/wazemmes/},
+  {label:'Fives',             re:/fives/},
+  {label:'Saint-Maurice',     re:/saint[\s-]?maurice|st[\s-]?maurice|pellevoisin/},
+  {label:'La Madeleine',      re:/madeleine/},
+  {label:'Lambersart',        re:/lambersart/},
+  {label:'Marcq-en-Barœul',   re:/marcq/},
+  {label:"Villeneuve-d'Ascq", re:/villeneuve/},
+  {label:'Seclin',            re:/seclin/},
+  {label:'Armentières',       re:/armentieres/}
+];
+
+/* =========================================================
+   2. État de la recherche
+   ========================================================= */
+function freshCrit(){
+  return {
+    budget:null,      // {v, approx} — plafond dur (v×1,1 si approx)
+    type:null,        // 'maison' | 'appartement'
+    chambres:null,    // minimum (dur)
+    pieces:null,      // minimum (dur)
+    jardin:null,      // 'soft' (classe) | 'hard' (filtre)
+    plainPied:false,  // dur
+    lieux:[],         // labels PLACES (dur)
+    dist:null,        // {km, hard, min} — dur si "max", sinon classe
+    neuf:null,        // true = neuf uniquement, false = ancien uniquement
+    travaux:null,     // false = sans travaux
+    famille:false,    // intention détectée → viager exclu
+    viagerOnly:false, // l'utilisateur demande explicitement du viager
+    allowViager:false // l'utilisateur a retiré la puce d'exclusion
+  };
+}
+let crit = freshCrit();
+
+/* =========================================================
+   3. Parseur — regex uniquement, aucun appel réseau
+   ========================================================= */
+const norm = s => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'');
+const fmt = n => Math.round(n).toLocaleString('fr-FR') + ' €';
+const WORDNUM = {une:1, un:1, deux:2, trois:3, quatre:4, cinq:5};
+
+// Applique la phrase à `crit` (mutation) et retourne les critères détectés (labels courts)
+function parse(text){
+  const t = norm(text);
+  const got = [];
+
+  // Budget : "300k", "300 000 €", "max 300k", "autour de 300 000", "monte à 350k"
+  const AMT = /(\d{1,3}(?:\s\d{3})+|\d+(?:[.,]\d+)?)\s*(k€|k\b|€|euros?)?/g;
+  let m; AMT.lastIndex = 0;
+  while((m = AMT.exec(t))){
+    let v = parseFloat(m[1].replace(/\s/g,'').replace(',','.'));
+    if(m[2] && m[2][0]==='k') v *= 1000;
+    if(v < 60000) continue; // trop petit pour être un budget (chambres, minutes, m²…)
+    const before = t.slice(Math.max(0, m.index-22), m.index);
+    crit.budget = {v, approx:/autour|environ|~|dans les/.test(before)};
+    got.push('budget ' + (crit.budget.approx?'≈ ':'≤ ') + fmt(v));
+    break;
+  }
+
+  // Type de bien
+  if(/maison/.test(t) && !/appart/.test(t)){ crit.type='maison'; got.push('maison'); }
+  else if(/appart\w*|studio|\bt[1-5]\b|\bf[1-5]\b/.test(t) && !/maison/.test(t)){ crit.type='appartement'; got.push('appartement'); }
+
+  // Chambres ("3 chambres", "deux chambres") et pièces ("T3", "4 pièces")
+  const mCh = t.match(/(\d+|une?|deux|trois|quatre|cinq)\s*ch(?:ambres?|\b)/);
+  if(mCh){ crit.chambres = WORDNUM[mCh[1]] || +mCh[1]; got.push('≥ '+crit.chambres+' chambre'+(crit.chambres>1?'s':'')); }
+  const mP = t.match(/\b[tf](\d)\b/) || t.match(/(\d+)\s*pieces?/);
+  if(mP){ crit.pieces = +mP[1]; got.push('≥ '+crit.pieces+' pièces'); }
+
+  // Jardin : souhaité par défaut, exigé si le message insiste
+  if(/jardin|exterieur|terrasse/.test(t)){
+    crit.jardin = /oblig|imperatif|indispensab|absolument|forcement|exige/.test(t) ? 'hard' : (crit.jardin==='hard' ? 'hard' : 'soft');
+    got.push(crit.jardin==='hard' ? 'jardin obligatoire' : 'jardin souhaité');
+  } else if(crit.jardin==='soft' && /oblig|imperatif|indispensab/.test(t)){
+    crit.jardin = 'hard'; got.push('jardin obligatoire');
+  }
+
+  // Plain-pied
+  if(/plain[\s-]?pied|plein[\s-]?pied|sans etage/.test(t)){ crit.plainPied = true; got.push('plain-pied'); }
+
+  // Distance : "20 min max de Lille", "15 km", "moins de 10 km"
+  const mMin = t.match(/(\d+)\s*min(?:utes)?/);
+  const mKm  = t.match(/(\d+)\s*km/);
+  if(mMin){
+    const km = Math.round(+mMin[1]*0.75); // ~45 km/h en périurbain
+    crit.dist = {km, hard:/max|moins de|pas plus/.test(t), min:+mMin[1]};
+    got.push((crit.dist.hard?'≤ ':'~')+km+' km de Lille');
+  } else if(mKm){
+    crit.dist = {km:+mKm[1], hard:/max|moins de|pas plus/.test(t)};
+    got.push((crit.dist.hard?'≤ ':'~')+crit.dist.km+' km de Lille');
+  } else if(/(?:pres|proche|autour)\s+de\s+lille/.test(t)){
+    crit.dist = {km:8, hard:false}; // préférence douce : classe sans filtrer
+    got.push('proche de Lille');
+  }
+
+  // Localisation : quartiers et villes de la base
+  const replace = /plutot/.test(t);
+  const foundPlaces = [];
+  let tPlaces = t;
+  for(const p of PLACES){
+    if(p.re.test(tPlaces)){ foundPlaces.push(p.label); tPlaces = tPlaces.replace(p.re,' '); }
+  }
+  // "Lille" seule = la ville ; ignorée si contexte de proximité ("près de Lille", "min de Lille")
+  if(/\blille\b/.test(tPlaces) && !/(?:pres|proche|autour|min\w*|km|max)\s*(?:de\s+)?lille/.test(tPlaces)){
+    foundPlaces.push('Lille');
+  }
+  if(foundPlaces.length){
+    crit.lieux = replace ? foundPlaces : [...new Set([...crit.lieux, ...foundPlaces])];
+    got.push(foundPlaces.join(', '));
+  }
+
+  // Neuf / ancien
+  if(/\bneuf\b|\bneuve\b/.test(t)){ crit.neuf = true; got.push('neuf'); }
+  else if(/\bancien(?:ne)?\b/.test(t)){ crit.neuf = false; got.push('ancien'); }
+
+  // Travaux
+  if(/sans travaux|pas de travaux|cle en main/.test(t)){ crit.travaux = false; got.push('sans travaux'); }
+
+  // Viager explicite / intention familiale
+  if(/viager/.test(t)){ crit.viagerOnly = true; got.push('viager'); }
+  if(/famille|enfants?|residence principale/.test(t)){ crit.famille = true; }
+
+  return got;
+}
+
+/* =========================================================
+   4. Filtrage (critères durs) & scoring (critères souples)
+   ========================================================= */
+// Règle d'intention anti-viager : recherche familiale → viager EXCLU
+function viagerMode(c){
+  if(c.viagerOnly) return 'only';
+  if(c.allowViager) return null;
+  if(c.famille || (c.chambres && c.chambres >= 2)) return 'exclude';
+  return null; // toléré mais fortement déclassé par le score
+}
+
+function matchLieu(b, lieux){
+  return lieux.some(l => b.lieu === l || b.ville === l);
+}
+
+function filterDB(c){
+  const vg = viagerMode(c);
+  return DB.filter(b=>{
+    if(c.budget && b.prix > c.budget.v * (c.budget.approx ? 1.1 : 1)) return false;
+    if(c.type && b.type !== c.type) return false;
+    if(c.chambres && b.ch < c.chambres) return false;
+    if(c.pieces && b.pieces < c.pieces) return false;
+    if(c.jardin === 'hard' && !b.jardin) return false;
+    if(c.plainPied && b.etages !== 0) return false;
+    if(c.lieux.length && !matchLieu(b, c.lieux)) return false;
+    if(c.dist && c.dist.hard && b.dist > c.dist.km) return false;
+    if(c.neuf === true && !b.neuf) return false;
+    if(c.neuf === false && b.neuf) return false;
+    if(c.travaux === false && b.travaux) return false;
+    if(vg === 'only' && !b.viager) return false;
+    if(vg === 'exclude' && b.viager) return false;
+    return true;
+  });
+}
+
+const DPE_PTS = {A:10, B:8, C:5, D:2, E:0, F:-5, G:-9};
+
+function score(b, c){
+  let s = 0;
+  if(c.jardin === 'soft') s += b.jardin ? 28 : 0;                 // jardin souhaité : classe
+  if(c.dist && !c.dist.hard) s += b.dist <= c.dist.km ? 20 : -(b.dist - c.dist.km) * 2;
+  if(c.budget){                                                    // bien "à la hauteur" du budget
+    const r = b.prix / c.budget.v;
+    s += 14 * (1 - Math.min(1, Math.abs(0.85 - r) * 2));
+  }
+  if(c.chambres) s += Math.min(2, b.ch - c.chambres) * 3;          // chambre bonus
+  s += DPE_PTS[b.dpe];
+  if(b.travaux && c.travaux === null) s -= 8;
+  if(b.viager) s -= 50;                                            // anti-viager : jamais en tête
+  if(b.neuf && c.neuf === null) s += 2;
+  return s;
+}
+
+function search(c){
+  return filterDB(c).map(b => ({b, s:score(b, c)}))
+    .sort((x, y) => y.s - x.s || x.b.prix - y.b.prix)
+    .map(x => x.b);
+}
+
+/* =========================================================
+   5. Raisons de correspondance & suggestions d'assouplissement
+   ========================================================= */
+// 2-3 raisons max, la 1re est TOUJOURS l'atout spécifique du bien
+function buildReasons(b, c){
+  const rs = [b.atout];
+  const cand = [];
+  if(c.budget){
+    const margin = c.budget.v * (c.budget.approx ? 1.1 : 1) - b.prix;
+    if(margin >= 15000) cand.push(fmt(margin) + ' sous votre budget');
+  }
+  if(c.jardin && b.jardin && !norm(b.atout).includes('jardin')) cand.push('Jardin de ' + b.jardin + ' m²');
+  if(c.chambres && b.ch > c.chambres) cand.push(b.ch + ' chambres — une de plus que demandé');
+  if((c.dist || c.lieux.length) && !norm(b.atout).includes('lille')) cand.push('À ' + String(b.dist).replace('.',',') + ' km du centre de Lille');
+  if((b.dpe === 'A' || b.dpe === 'B') && !b.atout.includes('DPE')) cand.push('DPE ' + b.dpe + ' — énergie maîtrisée');
+  return rs.concat(cand.slice(0, 2)).slice(0, 3);
+}
+
+// Si < 3 résultats : assouplissements chiffrés RÉELLEMENT calculés sur la base
+function buildWiden(c, n){
+  const out = [];
+  const test = (label, mut) => {
+    const c2 = JSON.parse(JSON.stringify(c));
+    mut(c2);
+    const gain = filterDB(c2).length - n;
+    if(gain > 0) out.push({label: label + ' : +' + gain + ' bien' + (gain>1?'s':''), mut, gain});
+  };
+  if(c.budget)              test('Budget +20 k€',                   x => { x.budget.v += 20000; });
+  if(c.dist && c.dist.hard) test('Étendre à ' + (c.dist.km+5) + ' km', x => { x.dist.km += 5; });
+  if(c.jardin === 'hard')   test('Jardin souhaité, non exigé',      x => { x.jardin = 'soft'; });
+  if(c.plainPied)           test('Accepter un étage',               x => { x.plainPied = false; });
+  if(c.type)                test(c.type==='maison' ? 'Inclure les appartements' : 'Inclure les maisons', x => { x.type = null; });
+  if(c.lieux.length)        test('Élargir à toute la métropole',    x => { x.lieux = []; });
+  return out.sort((a, b) => b.gain - a.gain).slice(0, 3);
+}
+
+/* =========================================================
+   6. Rendu
+   ========================================================= */
+const $ = id => document.getElementById(id);
+
+function chipDefs(c){
+  const chips = [];
+  if(c.budget) chips.push({k:'budget', t:(c.budget.approx?'≈ ':'≤ ') + fmt(c.budget.v)});
+  if(c.type) chips.push({k:'type', t:c.type === 'maison' ? 'Maison' : 'Appartement'});
+  if(c.pieces) chips.push({k:'pieces', t:'≥ ' + c.pieces + ' pièces'});
+  if(c.chambres) chips.push({k:'chambres', t:'≥ ' + c.chambres + ' ch.'});
+  if(c.jardin) chips.push({k:'jardin', t:c.jardin === 'hard' ? 'Jardin obligatoire' : 'Jardin souhaité'});
+  if(c.plainPied) chips.push({k:'plainPied', t:'Plain-pied'});
+  c.lieux.forEach(l => chips.push({k:'lieu:' + l, t:l}));
+  if(c.dist) chips.push({k:'dist', t:(c.dist.hard?'≤ ':'~') + c.dist.km + ' km de Lille'});
+  if(c.neuf === true) chips.push({k:'neuf', t:'Neuf'});
+  if(c.neuf === false) chips.push({k:'neuf', t:'Ancien'});
+  if(c.travaux === false) chips.push({k:'travaux', t:'Sans travaux'});
+  const vg = viagerMode(c);
+  if(vg === 'exclude') chips.push({k:'viager', t:'Viager exclu'});
+  if(vg === 'only') chips.push({k:'viager', t:'Viager uniquement'});
+  return chips;
+}
+
+function removeChip(k){
+  if(k === 'budget') crit.budget = null;
+  else if(k === 'type') crit.type = null;
+  else if(k === 'pieces') crit.pieces = null;
+  else if(k === 'chambres') crit.chambres = null;
+  else if(k === 'jardin') crit.jardin = null;
+  else if(k === 'plainPied') crit.plainPied = false;
+  else if(k === 'dist') crit.dist = null;
+  else if(k === 'neuf') crit.neuf = null;
+  else if(k === 'travaux') crit.travaux = null;
+  else if(k === 'viager'){ if(crit.viagerOnly) crit.viagerOnly = false; else crit.allowViager = true; }
+  else if(k.startsWith('lieu:')) crit.lieux = crit.lieux.filter(l => l !== k.slice(5));
+  render(false); // retrait de puce = re-filtrage instantané
+}
+
+function renderChips(){
+  const box = $('chips');
+  box.textContent = '';
+  chipDefs(crit).forEach(ch => {
+    const el = document.createElement('span');
+    el.className = 'chip';
+    el.append(ch.t);
+    const x = document.createElement('button');
+    x.type = 'button'; x.textContent = '×'; x.setAttribute('aria-label', 'Retirer : ' + ch.t);
+    x.addEventListener('click', () => removeChip(ch.k));
+    el.appendChild(x);
+    box.appendChild(el);
+  });
+}
+
+function card(b, c){
+  const el = document.createElement('article');
+  el.className = 'bcard';
+  const h = HUES[b.lieu] || 200;
+  const vis = document.createElement('div');
+  vis.className = 'visual';
+  vis.style.background = 'linear-gradient(140deg, hsl(' + h + ' 36% 26%), hsl(' + (h+38) + ' 44% 50%))';
+  vis.innerHTML = '<span>' + (b.type === 'maison' ? 'Maison' : 'Appartement') + '<small>' + b.lieu + (b.ville !== b.lieu ? ' · ' + b.ville : '') + '</small></span>';
+  el.appendChild(vis);
+
+  const body = document.createElement('div');
+  body.className = 'bbody';
+  const dpeCls = 'AB'.includes(b.dpe) ? ' good' : 'FG'.includes(b.dpe) ? ' bad' : '';
+  const badges = [
+    b.neuf ? '<span class="badge">Neuf</span>' : '',
+    b.viager ? '<span class="badge warn">Viager occupé</span>' : '',
+    b.travaux ? '<span class="badge warn">Travaux</span>' : ''
+  ].join('');
+  body.innerHTML =
+    '<div class="bhead"><span class="btitle">' + (b.type === 'maison' ? 'Maison' : 'Appart.') + ' ' + b.pieces + ' p. — ' + b.lieu + '</span>' +
+    '<span class="bprice">' + fmt(b.prix) + '</span></div>' +
+    '<div class="bmeta">' + b.surf + ' m² · ' + b.ch + ' ch. · ' +
+      (b.etages === 0 ? 'plain-pied' : b.etages + ' niv.') + ' · <span class="dpe' + dpeCls + '">DPE ' + b.dpe + '</span>' +
+      (b.jardin ? ' · jardin ' + b.jardin + ' m²' : '') + '</div>' +
+    (badges ? '<div class="badges">' + badges + '</div>' : '') +
+    '<ul class="why">' + buildReasons(b, c).map(r => '<li>' + r + '</li>').join('') + '</ul>';
+  el.appendChild(body);
+  return el;
+}
+
+function renderResults(list){
+  const cards = $('cards');
+  cards.textContent = '';
+  list.forEach((b, i) => {
+    const el = card(b, crit);
+    el.style.animationDelay = Math.min(i * 40, 240) + 'ms';
+    cards.appendChild(el);
+  });
+  $('count').innerHTML = list.length
+    ? '<b>' + list.length + ' bien' + (list.length>1?'s':'') + '</b> · triés par pertinence'
+    : 'Aucun bien ne correspond à tous vos critères.';
+
+  const widen = $('widen');
+  widen.textContent = '';
+  if(list.length < 3){
+    const sugg = buildWiden(crit, list.length);
+    if(sugg.length){
+      const box = document.createElement('div');
+      box.className = 'widen';
+      box.innerHTML = '<p>Peu de résultats — élargir un critère ?</p>';
+      sugg.forEach(sg => {
+        const btn = document.createElement('button');
+        btn.type = 'button'; btn.textContent = sg.label;
+        btn.addEventListener('click', () => {
+          sg.mut(crit);
+          const n = search(crit).length;
+          botSay('J’ai élargi (' + sg.label.split(' : ')[0].toLowerCase() + ') — ' + n + ' bien' + (n>1?'s':'') + '.');
+          render(false);
+        });
+        box.appendChild(btn);
+      });
+      widen.appendChild(box);
+    } else if(!list.length){
+      widen.innerHTML = '<p class="empty">Essayez de retirer une puce ci-dessus pour élargir la recherche.</p>';
+    }
+  }
+}
+
+// skeleton=true : délai artificiel de 400 ms avec squelettes (réalisme)
+function render(skeleton){
+  renderChips();
+  if(skeleton){
+    const cards = $('cards');
+    cards.textContent = '';
+    $('count').textContent = 'Recherche…';
+    $('widen').textContent = '';
+    for(let i = 0; i < 6; i++){ const sk = document.createElement('div'); sk.className = 'sk'; cards.appendChild(sk); }
+    setTimeout(() => renderResults(search(crit)), 400);
+  } else {
+    renderResults(search(crit));
+  }
+}
+
+/* =========================================================
+   7. Conversation & événements
+   ========================================================= */
+function say(cls, text){
+  const el = document.createElement('div');
+  el.className = 'msg ' + cls;
+  el.textContent = text; // textContent : le texte utilisateur n'est jamais interprété
+  $('msgs').appendChild(el);
+  $('msgs').scrollTop = $('msgs').scrollHeight;
+  $('drawerLabel').textContent = 'Conversation (' + $('msgs').children.length + ')';
+}
+const botSay = t => say('bot', t);
+
+// L'assistant répond UNE phrase courte, jamais plus
+function reply(got, n){
+  const biens = n + ' bien' + (n>1?'s':'');
+  if(!got.length) return 'Je n’ai pas saisi de nouveau critère — précisez budget, secteur, chambres ou jardin.';
+  if(n === 0) return 'Compris, ' + got.join(', ') + ' — plus aucun bien, voyez les élargissements proposés.';
+  return 'Compris, ' + got.join(', ') + ' — il reste ' + biens + '.';
+}
+
+function submit(text){
+  text = text.trim();
+  if(!text) return;
+  const first = $('app').hidden;
+  if(first){
+    $('home').hidden = true;
+    $('app').hidden = false;
+  }
+  say('user', text);
+  const got = parse(text);
+  render(true); // squelettes 400 ms puis résultats
+  setTimeout(() => {
+    const n = search(crit).length;
+    botSay(first ? 'Voici ' + n + ' bien' + (n>1?'s':'') + ' correspondant à votre recherche.' : reply(got, n));
+  }, 420);
+  $('convoInput').focus();
+}
+
+$('homeForm').addEventListener('submit', e => { e.preventDefault(); submit($('homeInput').value); });
+$('convoForm').addEventListener('submit', e => { e.preventDefault(); submit($('convoInput').value); $('convoInput').value = ''; });
+document.querySelectorAll('.hints button').forEach(b =>
+  b.addEventListener('click', () => { $('homeInput').value = b.textContent; submit(b.textContent); }));
+
+// Tiroir mobile
+$('drawerToggle').addEventListener('click', () => {
+  const open = $('convo').classList.toggle('open');
+  $('drawerToggle').setAttribute('aria-expanded', open);
+});
+
+})();
+</script>
+</body>
+</html>
