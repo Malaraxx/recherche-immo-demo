@@ -15,6 +15,14 @@ async function loadAnnonces(){
   return r.json();
 }
 
+// Paramètres financiers (taux, HCSF, notaire…) — voir config-finance.json
+async function loadConfigFinance(){
+  const r = await fetch('config-finance.json');
+  if(!r.ok) throw new Error('Chargement de la config financière impossible (HTTP ' + r.status + ')');
+  return r.json();
+}
+
 global.loadAnnonces = loadAnnonces;
+global.loadConfigFinance = loadConfigFinance;
 
 })(typeof globalThis !== 'undefined' ? globalThis : this);

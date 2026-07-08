@@ -121,6 +121,34 @@
   .why li::before{content:'✓';position:absolute;left:0;color:var(--terra);font-weight:700}
   .why li:first-child{color:var(--ink);font-weight:500}
 
+  /* Bandeau "Mon budget" (repliable, tout optionnel) */
+  .budget{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);margin-bottom:14px;overflow:hidden}
+  .budget-head{display:flex;align-items:center;gap:10px;width:100%;background:none;border:none;padding:12px 16px;text-align:left}
+  .budget-head .bt{font-weight:700;font-size:.85rem;white-space:nowrap}
+  .budget-sum{flex:1;font-size:.79rem;color:var(--ink-soft);min-width:0}
+  .budget-sum b{color:var(--terra-deep)}
+  .budget-head .chev{transition:transform .25s;color:var(--ink-soft);font-size:.8rem}
+  .budget.open .chev{transform:rotate(180deg)}
+  .budget-body{padding:2px 16px 14px;border-top:1px dashed var(--line)}
+  .budget-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-top:10px}
+  .budget-grid label{font-size:.72rem;font-weight:600;color:var(--ink-soft);display:flex;flex-direction:column;gap:4px}
+  .budget-grid input,.budget-grid select{font:inherit;font-size:.86rem;padding:7px 10px;border:1px solid var(--line);border-radius:8px;background:var(--paper);color:var(--ink);width:100%}
+  .budget-grid input:focus-visible,.budget-grid select:focus-visible{outline:2px solid var(--terra);outline-offset:1px}
+  .budget-grid label.check{flex-direction:row;align-items:center;gap:8px;align-self:end;font-size:.8rem;color:var(--ink)}
+  .budget-grid label.check input{width:auto}
+  .budget-more{background:none;border:none;color:var(--terra-deep);font-size:.78rem;font-weight:600;padding:10px 0 0;text-decoration:underline}
+  .budget-note{font-size:.7rem;color:var(--ink-soft);margin-top:10px;line-height:1.5}
+
+  /* Finançabilité par carte */
+  .finband{font-size:.76rem;font-weight:600;padding:7px 16px;border-bottom:1px solid var(--line)}
+  .finband.ok{background:#E7F3EB;color:#1F6B41}
+  .finband.limit{background:#F1F7EC;color:#4E7A34}
+  .finband.reach{background:#FBF1E2;color:#8F5A14}
+  .finband.out{background:#EFECEC;color:#6E6683}
+  .badge.ptz{background:#E7EDF9;color:#2F4B8F;text-transform:none;letter-spacing:0}
+  .badge.dpe-warn{background:#FBF1E2;color:#8F5A14;text-transform:none;letter-spacing:0}
+  .badge.dpe-op{background:var(--ok-bg);color:var(--plum);text-transform:none;letter-spacing:0}
+
   /* Squelettes de chargement */
   .sk{height:250px;border-radius:var(--radius);border:1px solid var(--line);overflow:hidden;position:relative;background:var(--card)}
   .sk::after{
@@ -223,6 +251,32 @@
   </div>
   <main id="main">
     <div id="results">
+      <div class="budget" id="budget">
+        <button type="button" class="budget-head" id="budgetToggle" aria-expanded="false">
+          <span class="bt">Mon budget</span>
+          <span class="budget-sum" id="budgetSum">optionnel — classe les biens selon votre capacité réelle</span>
+          <span class="chev">▾</span>
+        </button>
+        <div class="budget-body" id="budgetBody" hidden>
+          <div class="budget-grid">
+            <label>Revenus nets / mois<input type="number" id="fRev" min="0" step="100" placeholder="4 000"></label>
+            <label>Apport<input type="number" id="fApp" min="0" step="1000" placeholder="30 000"></label>
+            <label>Durée du prêt<select id="fDur"><option value="15">15 ans</option><option value="20">20 ans</option><option value="25" selected>25 ans</option></select></label>
+          </div>
+          <button type="button" class="budget-more" id="budgetMore" aria-expanded="false">affiner (charges, foyer, statut, âge, loyer, primo, projet)</button>
+          <div class="budget-grid" id="budgetAdv" hidden>
+            <label>Crédits en cours / mois<input type="number" id="fChg" min="0" step="50" placeholder="0"></label>
+            <label>Adultes<input type="number" id="fAd" min="1" max="4" value="2"></label>
+            <label>Enfants<input type="number" id="fEnf" min="0" max="6" value="0"></label>
+            <label>Statut pro<select id="fStat"><option value="cdi">CDI</option><option value="fonc">Fonctionnaire</option><option value="indep">Indépendant</option><option value="cdd">CDD</option></select></label>
+            <label>Âge<input type="number" id="fAge" min="18" max="75" placeholder="—"></label>
+            <label>Loyer actuel<input type="number" id="fLoyer" min="0" step="50" placeholder="—"></label>
+            <label class="check"><input type="checkbox" id="fPrimo"> Premier achat</label>
+            <label>Projet<select id="fProj"><option value="habitation">Résidence principale</option><option value="investissement">Investissement locatif</option></select></label>
+          </div>
+          <p class="budget-note" id="budgetNote">Estimations indicatives et non contractuelles — paramètres de juillet 2026. Vos données restent dans votre navigateur.</p>
+        </div>
+      </div>
       <div class="chips" id="chips"></div>
       <div class="count" id="count"></div>
       <div class="cards" id="cards"></div>
@@ -233,6 +287,7 @@
 </div>
 
 <script src="engine.js"></script>
+<script src="finance.js"></script>
 <script src="adapter.js"></script>
 <script>
 (function(){
@@ -242,6 +297,7 @@
    les données arrivent via adapter.js (loadAnnonces).
    ========================================================= */
 const E = ImmoEngine;
+const F = ImmoFinance;
 const $ = id => document.getElementById(id);
 const fmt = E.fmt;
 
@@ -251,7 +307,73 @@ const HUES = {'Vieux-Lille':258,'Vauban':232,'Wazemmes':16,'Fives':340,'Saint-Ma
 
 let crit = E.freshCriteria();
 let ANNONCES = [];
-const dataReady = loadAnnonces().then(a => { ANNONCES = a; });
+let CFG = null;
+// Profil financier : tout est optionnel et reste en mémoire locale —
+// AUCUNE donnée n'est envoyée nulle part.
+let profile = null;
+const fin = {revenus:0, charges:0, apport:0, duree:25, statutPro:'cdi',
+  foyer:{adultes:2, enfants:0}, age:null, loyerActuel:null, primo:false, projet:'habitation'};
+const dataReady = Promise.all([loadAnnonces(), loadConfigFinance()]).then(([a, cfg]) => {
+  ANNONCES = a; CFG = cfg;
+  $('budgetNote').textContent = 'Estimations indicatives et non contractuelles — paramètres de '
+    + cfg.dateValidite + '. Vos données restent dans votre navigateur.';
+});
+
+/* ---- Profil financier ---- */
+function rebuildProfile(){
+  profile = (CFG && fin.revenus > 0) ? F.computeProfile(fin, CFG) : null;
+  $('budgetSum').innerHTML = profile
+    ? 'budget ≈ <b>' + fmt(profile.budgetTotal) + '</b> · mensualité max ' + fmt(profile.mensualiteMax)
+      + ' · dossier <b>' + profile.grade + '</b>'
+    : 'optionnel — classe les biens selon votre capacité réelle';
+}
+// b => Assessment, mémoïsé le temps d'un rendu
+function assessorFor(){
+  if(!profile || !CFG) return null;
+  const cache = new Map();
+  return b => {
+    let v = cache.get(b.id);
+    if(!v){ v = F.assessListing(b, profile, CFG); cache.set(b.id, v); }
+    return v;
+  };
+}
+function readFields(){
+  fin.revenus = +$('fRev').value || 0;
+  fin.apport = +$('fApp').value || 0;
+  fin.duree = +$('fDur').value;
+  fin.charges = +$('fChg').value || 0;
+  fin.foyer.adultes = +$('fAd').value || 1;
+  fin.foyer.enfants = +$('fEnf').value || 0;
+  fin.statutPro = $('fStat').value;
+  fin.age = +$('fAge').value || null;
+  fin.loyerActuel = +$('fLoyer').value || null;
+  fin.primo = $('fPrimo').checked;
+  fin.projet = $('fProj').value;
+}
+function writeFields(){
+  $('fRev').value = fin.revenus || '';
+  $('fApp').value = fin.apport || '';
+  $('fDur').value = String(fin.duree);
+  $('fChg').value = fin.charges || '';
+  $('fAd').value = fin.foyer.adultes;
+  $('fEnf').value = fin.foyer.enfants;
+  $('fStat').value = fin.statutPro;
+  $('fAge').value = fin.age || '';
+  $('fLoyer').value = fin.loyerActuel || '';
+  $('fPrimo').checked = fin.primo;
+  $('fProj').value = fin.projet;
+}
+$('budgetBody').addEventListener('change', () => { readFields(); rebuildProfile(); render(false); });
+$('budgetToggle').addEventListener('click', () => {
+  const open = $('budget').classList.toggle('open');
+  $('budgetBody').hidden = !open;
+  $('budgetToggle').setAttribute('aria-expanded', open);
+});
+$('budgetMore').addEventListener('click', () => {
+  const open = $('budgetAdv').hidden;
+  $('budgetAdv').hidden = !open;
+  $('budgetMore').setAttribute('aria-expanded', open);
+});
 
 /* ---- Puces de critères ---- */
 function chipDefs(c){
@@ -304,7 +426,7 @@ function renderChips(){
 }
 
 /* ---- Cartes de résultats ---- */
-function card(b, c){
+function card(b, c, fa){
   const el = document.createElement('article');
   el.className = 'bcard';
   const h = HUES[b.lieu] || 200;
@@ -314,14 +436,30 @@ function card(b, c){
   vis.innerHTML = '<span>' + (b.type === 'maison' ? 'Maison' : 'Appartement') + '<small>' + b.lieu + (b.ville !== b.lieu ? ' · ' + b.ville : '') + '</small></span>';
   el.appendChild(vis);
 
+  // Bandeau de finançabilité (uniquement quand un profil existe)
+  if(fa){
+    const band = document.createElement('div');
+    band.className = 'finband ' + ({confortable:'ok', plafond:'limit', atteignable:'reach', hors_budget:'out'})[fa.etat];
+    band.textContent = fa.label + ' · ' + fmt(fa.mensualite) + '/mois'
+      + (fa.etat === 'atteignable' && fa.conseil ? ' — ' + fa.conseil : '');
+    el.appendChild(band);
+  }
+
   const body = document.createElement('div');
   body.className = 'bbody';
   const dpeCls = 'AB'.includes(b.dpe) ? ' good' : 'FG'.includes(b.dpe) ? ' bad' : '';
+  const finBadges = [];
+  if(fa && fa.ptz) finBadges.push('<span class="badge ptz">' + fa.ptz.texte + '</span>');
+  if(fa && fa.dpe){
+    if(fa.dpe.alerte) finBadges.push('<span class="badge dpe-warn">' + fa.dpe.alerte + '</span>');
+    if(fa.dpe.note) finBadges.push('<span class="badge dpe-warn">' + fa.dpe.note + '</span>');
+    if(fa.dpe.reclassement) finBadges.push('<span class="badge dpe-op">' + fa.dpe.reclassement + '</span>');
+  }
   const badges = [
     b.neuf ? '<span class="badge">Neuf</span>' : '',
     b.viager ? '<span class="badge warn">Viager occupé</span>' : '',
     b.travaux ? '<span class="badge warn">Travaux</span>' : ''
-  ].join('');
+  ].concat(finBadges).join('');
   body.innerHTML =
     '<div class="bhead"><span class="btitle">' + (b.type === 'maison' ? 'Maison' : 'Appart.') + ' ' + b.pieces + ' p. — ' + b.lieu + '</span>' +
     '<span class="bprice">' + fmt(b.prix) + '</span></div>' +
@@ -329,16 +467,16 @@ function card(b, c){
       (b.etages === 0 ? 'plain-pied' : b.etages + ' niv.') + ' · <span class="dpe' + dpeCls + '">DPE ' + b.dpe + '</span>' +
       (b.jardin ? ' · jardin ' + b.jardin + ' m²' : '') + '</div>' +
     (badges ? '<div class="badges">' + badges + '</div>' : '') +
-    '<ul class="why">' + E.buildReasons(b, c).map(r => '<li>' + r + '</li>').join('') + '</ul>';
+    '<ul class="why">' + E.buildReasons(b, c, fa).map(r => '<li>' + r + '</li>').join('') + '</ul>';
   el.appendChild(body);
   return el;
 }
 
-function renderResults(list){
+function renderResults(list, assess){
   const cards = $('cards');
   cards.textContent = '';
   list.forEach((b, i) => {
-    const el = card(b, crit);
+    const el = card(b, crit, assess ? assess(b) : null);
     el.style.animationDelay = Math.min(i * 40, 240) + 'ms';
     cards.appendChild(el);
   });
@@ -381,9 +519,10 @@ function render(skeleton){
     $('count').textContent = 'Recherche…';
     $('widen').textContent = '';
     for(let i = 0; i < 6; i++){ const sk = document.createElement('div'); sk.className = 'sk'; cards.appendChild(sk); }
-    setTimeout(() => renderResults(E.search(ANNONCES, crit)), 400);
+    setTimeout(() => { const a = assessorFor(); renderResults(E.search(ANNONCES, crit, a), a); }, 400);
   } else {
-    renderResults(E.search(ANNONCES, crit));
+    const a = assessorFor();
+    renderResults(E.search(ANNONCES, crit, a), a);
   }
 }
 
@@ -417,10 +556,14 @@ function submit(text){
     }
     say('user', text);
     const got = E.parseQuery(text, crit);
+    // Les infos financières de la conversation alimentent le profil
+    const finGot = F.parseFinance(text, fin);
+    if(finGot.length){ writeFields(); rebuildProfile(); }
+    const allGot = got.concat(finGot);
     render(true); // squelettes 400 ms puis résultats
     setTimeout(() => {
       const n = E.search(ANNONCES, crit).length;
-      botSay(first ? 'Voici ' + n + ' bien' + (n>1?'s':'') + ' correspondant à votre recherche.' : reply(got, n));
+      botSay(first ? 'Voici ' + n + ' bien' + (n>1?'s':'') + ' correspondant à votre recherche.' : reply(allGot, n));
     }, 420);
     $('convoInput').focus();
   });

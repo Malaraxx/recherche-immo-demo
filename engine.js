@@ -24,6 +24,8 @@
  * @property {boolean} [viager]  Vente en viager occupé
  * @property {boolean} [travaux] Travaux à prévoir
  * @property {boolean} [neuf]    Programme neuf
+ * @property {'electrique'|'gaz'|'fioul'} [chauffage] Mode de chauffage (règles DPE)
+ * @property {number}  [dpeDate] Année de réalisation du DPE (réforme 2026)
  */
 (function(global){
 'use strict';
@@ -194,7 +196,10 @@ function filterAnnonces(annonces, c){
 
 const DPE_PTS = {A:10, B:8, C:5, D:2, E:0, F:-5, G:-9};
 
-function score(b, c){
+// `fin` (optionnel) : Assessment de finance.js — la solvabilité réelle
+// devient une règle de pertinence. Hors budget = relégué, JAMAIS exclu
+// (afficher la vérité, pas la censure).
+function score(b, c, fin){
   let s = 0;
   if(c.jardin === 'soft') s += b.jardin ? 28 : 0;                 // jardin souhaité : classe
   if(c.dist && !c.dist.hard) s += b.dist <= c.dist.km ? 20 : -(b.dist - c.dist.km) * 2;
@@ -207,12 +212,23 @@ function score(b, c){
   if(b.travaux && c.travaux === null) s -= 8;
   if(b.viager) s -= 50;                                            // anti-viager : jamais en tête
   if(b.neuf && c.neuf === null) s += 2;
+  if(fin){
+    if(fin.etat === 'confortable') s += 18;
+    else if(fin.etat === 'plafond') s += 4;
+    else if(fin.etat === 'atteignable') s -= 6;
+    else if(fin.etat === 'hors_budget') s -= 1000;                 // relégué en fin de liste
+    if(fin.ptz) s += 8;
+    if(fin.dpe && fin.dpe.malus) s -= 6;
+  }
   return s;
 }
 
-/** @param {Annonce[]} annonces — filtre puis trie par pertinence décroissante */
-function search(annonces, c){
-  return filterAnnonces(annonces, c).map(b => ({b, s:score(b, c)}))
+/**
+ * @param {Annonce[]} annonces — filtre puis trie par pertinence décroissante
+ * @param {?function(Annonce):Object} [assessFn] — b => Assessment (finance.js)
+ */
+function search(annonces, c, assessFn){
+  return filterAnnonces(annonces, c).map(b => ({b, s:score(b, c, assessFn ? assessFn(b) : null)}))
     .sort((x, y) => y.s - x.s || x.b.prix - y.b.prix)
     .map(x => x.b);
 }
@@ -220,9 +236,12 @@ function search(annonces, c){
 /* =========================================================
    Raisons de correspondance & suggestions d'assouplissement
    ========================================================= */
-// 2-3 raisons max, la 1re est TOUJOURS l'atout spécifique du bien
-function buildReasons(b, c){
-  const rs = [b.atout];
+// 2-3 raisons max ; si un profil financier existe (`fin`), la raison
+// financière vient en PREMIER, puis l'atout spécifique du bien
+function buildReasons(b, c, fin){
+  const rs = [];
+  if(fin && fin.raison) rs.push(fin.raison);
+  rs.push(b.atout);
   const cand = [];
   if(c.budget){
     const margin = c.budget.v * (c.budget.approx ? 1.1 : 1) - b.prix;
